@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cámara de Reportes Fotográficos</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            height: 100%;
+            background-color: #111;
+            overflow: hidden;
+            color: white;
+        }
+
+        #camera-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+        }
+
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        /* Controles Superiores (Logo) */
+        #top-controls {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100px;
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        #top-controls img {
+            max-width: 100%;
+            max-height: 100%;
+            display: none;
+            object-fit: contain;
+        }
+
+        #top-controls span {
+            color: #333;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* Panel Inferior Izquierdo (Descripción) */
+        #bottom-left-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 15px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px;
+            border-radius: 8px;
+            width: calc(100% - 250px); /* Deja espacio para el panel derecho */
+            min-width: 200px;
+            backdrop-filter: blur(2px);
+        }
+
+        .prefix-buttons {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .prefix-btn {
+            background: #fff;
+            color: #000;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .prefix-btn.add-btn {
+            background: #4caf50;
+            color: white;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: none;
+            background: rgba(255,255,255,0.9);
+            color: #000;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .filename-preview {
+            font-size: 11px;
+            color: #ddd;
+            margin-top: 2px;
+        }
+
+        /* Panel Inferior Derecho (Ubicación y GPS) */
+        #bottom-right-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 15px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: right;
+            backdrop-filter: blur(2px);
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .loc-line { font-weight: bold; text-transform: uppercase; margin-bottom: 4px;}
+        .coord-line { margin-bottom: 4px; font-family: monospace; font-size: 13px;}
+        .date-line { margin-bottom: 4px; }
+        .alt-line { margin-bottom: 0;}
+
+        /* Botón de Captura */
+        #capture-btn {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            width: 60px;
+            height: 60px;
+            background: white;
+            border: 4px solid #aaa;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+
+        #capture-btn:active {
+            transform: translateX(-50%) scale(0.9);
+            background: #ddd;
+        }
+
+        /* Formularios ocultos */
+        input[type="file"] { display: none; }
+        
+        #new-prefix-container {
+            display: none;
+            margin-bottom: 8px;
+        }
+        #new-prefix-container input {
+            width: calc(100% - 60px);
+            display: inline-block;
+        }
+        #new-prefix-container button {
+            width: 50px;
+            padding: 8px 0;
+            border: none;
+            background: #2196F3;
+            color: white;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        @media (max-width: 600px) {
+            #bottom-left-panel { bottom: 120px; width: calc(100% - 30px); left: 15px; }
+            #bottom-right-panel { bottom: 20px; right: 15px; text-align: left; left: 15px; width: calc(100% - 30px); display: flex; flex-direction: column;}
+            #bottom-right-panel span { text-align: left; }
+            #capture-btn { bottom: 20px; right: 20px; left: auto; transform: none; width: 50px; height: 50px;}
+        }
+    </style>
+</head>
+<body>
+
+    <div id="camera-container">
+        <!-- Video Stream -->
+        <video id="video" autoplay playsinline></video>
+
+        <!-- Botón Cargar Logo -->
+        <label id="top-controls" for="logo-upload">
+            <span id="upload-text">Cargar Logo</span>
+            <img id="logo-preview" alt="Logo">
+            <input type="file" id="logo-upload" accept="image/*">
+        </label>
+
+        <!-- Descripción Izquierda -->
+        <div id="bottom-left-panel">
+            <div id="prefix-container" class="prefix-buttons">
+                <!-- Los botones se generan por JS -->
+            </div>
+            
+            <div id="new-prefix-container">
+                <input type="text" id="new-prefix-input" placeholder="Ej: Calicata_">
+                <button onclick="saveNewPrefix()">OK</button>
+            </div>
+
+            <input type="text" id="desc-input" placeholder="Escribe la descripción aquí...">
+            <div class="filename-preview">Archivo: <span id="filename-output">foto.jpg</span></div>
+        </div>
+
+        <!-- Coordenadas Derecha -->
+        <div id="bottom-right-panel">
+            <div class="loc-line" id="ui-location">Buscando ubicación...</div>
+            <div class="coord-line" id="ui-coords">E: --------- N: ---------</div>
+            <div class="date-line" id="ui-date">--/--/---- --:--</div>
+            <div class="alt-line" id="ui-alt">Altitud: --- msnm</div>
+        </div>
+
+        <!-- Capturar -->
+        <button id="capture-btn" aria-label="Capturar Foto"></button>
+    </div>
+
+    <!-- Canvas Oculto para procesar imagen -->
+    <canvas id="canvas" style="display: none;"></canvas>
+
+    <script>
+        // --- VARIABLES GLOBALES ---
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const descInput = document.getElementById('desc-input');
+        const filenameOutput = document.getElementById('filename-output');
+        const logoPreview = document.getElementById('logo-preview');
+        const uploadText = document.getElementById('upload-text');
+        
+        let logoImageObj = null;
+        let currentPrefix = '';
+        let gpsData = { e: '---------', n: '---------', alt: '---', loc: 'DISTRITO, PROVINCIA, DEPARTAMENTO' };
+
+        // --- INICIALIZACIÓN ---
+        async function init() {
+            startCamera();
+            loadPrefixes();
+            loadLogo();
+            updateDateTime();
+            setInterval(updateDateTime, 1000); // Actualizar reloj cada segundo
+            startGPS();
+            
+            descInput.addEventListener('input', updateFilename);
+        }
+
+        // --- CÁMARA ---
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("Error accediendo a la cámara: ", err);
+                alert("Por favor permite el acceso a la cámara.");
+            }
+        }
+
+        // --- RELOJ ---
+        function updateDateTime() {
+            const now = new Date();
+            const dia = String(now.getDate()).padStart(2, '0');
+            const mes = String(now.getMonth() + 1).padStart(2, '0');
+            const anio = now.getFullYear();
+            const horas = String(now.getHours()).padStart¡Es una idea excelente y muy práctica! Alojarla en **GitHub Pages** es la forma ideal de usarla como una aplicación real. Además, al subir el código junto con tu logo, la aplicación cargará la imagen por defecto apenas la abras y ya no tendrás que buscarla en tu celular cada vez.
+
+Para lograr esto, he modificado el código para que la aplicación busque automáticamente un archivo llamado exactamente **`logo.png`** en la misma carpeta donde esté alojada. Si lo encuentra, lo carga; si no, simplemente te deja el botón por si quieres subir uno manualmente.
+
+Aquí tienes el código actualizado. 
+
+```html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cámara Geonort</title>
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <style>
+        /* Forzamos la tipografía de la empresa */
+        body, html, input, button {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        #video-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        video {
+            min-width: 100%;
+            min-height: 100%;
+            object-fit: cover;
+        }
+        /* Paneles con fondo negro al 60% de transparencia */
+        .overlay-panel {
+            background-color: rgba(0, 0, 0, 0.6);
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 10px;
+            backdrop-filter: blur(2px);
+        }
+        /* Ocultar elementos nativos que no necesitamos ver */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="video-container">
+    <video id="camera" autoplay playsinline></video>
+
+    <!-- ZONA SUPERIOR DERECHA: Logo -->
+    <div class="absolute top-4 right-4 bg-white/90 p-2 rounded shadow flex flex-col items-center">
+        <img id="logoPreview" class="max-h-16 object-contain hidden mb-2" alt="Logo">
+        <label for="logoUpload" class="text-xs text-blue-600 font-semibold cursor-pointer text-center" id="lblUpload">Cambiar Logo</label>
+        <input type="file" id="logoUpload" accept="image/*" class="hidden">
+    </div>
+
+    <!-- ZONA INFERIOR IZQUIERDA: Descripción y Prefijos -->
+    <div class="absolute bottom-4 left-4 w-72 overlay-panel flex flex-col gap-2 shadow-lg">
+        <div class="flex flex-wrap gap-1" id="prefixContainer">
+            <button class="bg-gray-700 hover:bg-gray-600 text-white text-xs py-1 px-2 rounded prefix-btn" data-prefix="#C">#C</button>
+            <button class="bg-gray-700 hover:bg-gray-600 text-white text-xs py-1 px-2 rounded prefix-btn" data-prefix="Geo_">Geo_</button>
+            <button id="addPrefixBtn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded border border-blue-400">+ Nuevo</button>
+        </div>
+        
+        <div id="newPrefixDiv" class="hidden flex gap-1">
+            <input type="text" id="newPrefixInput" placeholder="Ej: Pto_" class="w-full text-xs p-1 rounded text-black outline-none">
+            <button id="savePrefixBtn" class="bg-green-600 text-white text-xs px-2 rounded">✓</button>
+        </div>
+
+        <div>
+            <label class="text-xs font-semibold block mb-1">Descripción:</label>
+            <textarea id="description" rows="2" class="w-full text-sm p-1 rounded text-black outline-none resize-none" placeholder="Escribe aquí..."></textarea>
+        </div>
+        
+        <div class="text-xs font-semibold border-t border-gray-500 pt-1 mt-1 text-gray-200">
+            Archivo: <span id="fileNamePreview" class="text-white font-bold">#C_Foto.jpg</span>
+        </div>
+    </div>
+
+    <!-- ZONA INFERIOR DERECHA: Datos Geográficos (Distribución exacta) -->
+    <div class="absolute bottom-4 right-4 w-72 overlay-panel text-right flex flex-col gap-1 shadow-lg text-sm">
+        <div id="locLocation" class="font-bold uppercase tracking-wide">BUSCANDO UBICACIÓN...</div>
+        <div>
+            E: <span id="locE">----------</span> &nbsp;&nbsp; N: <span id="locN">----------</span>
+        </div>
+        <div id="locDateTime" class="text-gray-200">
+            --/--/---- --:--
+        </div>
+        <div id="locAltitude" class="text-gray-300 text-xs">
+            Altitud: -- msnm
+        </div>
+    </div>
+
+    <!-- BOTÓN DE CAPTURA CENTRAL -->
+    <button id="captureBtn" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-white border-4 border-gray-400 rounded-full shadow-xl hover:bg-gray-200 active:bg-gray-400 transition"></button>
+</div>
+
+<!-- Canvas oculto para procesar la imagen -->
+<canvas id="canvas" class="hidden"></canvas>
+
+<script>
+    // --- VARIABLES Y ELEMENTOS ---
+    const video = document.getElementById('camera');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const descriptionInput = document.getElementById('description');
+    const fileNamePreview = document.getElementById('fileNamePreview');
+    const prefixButtons = document.querySelectorAll('.prefix-btn');
+    const addPrefixBtn = document.getElementById('addPrefixBtn');
+    const newPrefixDiv = document.getElementById('newPrefixDiv');
+    const newPrefixInput = document.getElementById('newPrefixInput');
+    const savePrefixBtn = document.getElementById('savePrefixBtn');
+    const prefixContainer = document.getElementById('prefixContainer');
+    const logoUpload = document.getElementById('logoUpload');
+    const logoPreview = document.getElementById('logoPreview');
+    const lblUpload = document.getElementById('lblUpload');
+
+    let defaultLogoLoaded = false;
+    let logoImageObj = new Image();
+    
+    // INTENTAR CARGAR LOGO POR DEFECTO ("logo.png" en la misma carpeta)
+    logoImageObj.src = 'logo.png';
+    logoImageObj.onload = () => {
+        logoPreview.src = logoImageObj.src;
+        logoPreview.classList.remove('hidden');
+        lblUpload.innerText = "Cambiar Logo";
+        defaultLogoLoaded = true;
+    };
+    logoImageObj.onerror = () => {
+        // Si no hay logo.png en el servidor, no pasa nada, espera a que se suba uno
+        logoImageObj = null;
+        lblUpload.innerText = "Cargar Logo";
+    };
+
+    // --- CARGA DE LOGO MANUAL ---
+    logoUpload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                logoImageObj = new Image();
+                logoImageObj.src = event.target.result;
+                logoImageObj.onload = () => {
+                    logoPreview.src = logoImageObj.src;
+                    logoPreview.classList.remove('hidden');
+                    lblUpload.innerText = "Cambiar Logo";
+                    defaultLogoLoaded = true;
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // --- CÁMARA ---
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } 
+            });
+            video.srcObject = stream;
+        } catch (err) {
+            console.error("Error al acceder a la cámara: ", err);
+            alert("No se pudo acceder a la cámara. Por favor, da permisos.");
+        }
+    }
+    startCamera();
+
+    // --- MANEJO DE PREFIJOS Y NOMBRE DE ARCHIVO ---
+    let currentPrefix = '#C';
+
+    function updateFileName() {
+        let desc = descriptionInput.value.trim().replace(/[^a-zA-Z0-9_\- ]/g, "");
+        desc = desc.replace(/\s+/g, "_");
+        let finalName = currentPrefix;
+        if (desc.length > 0) finalName += (currentPrefix.endsWith('_') ? '' : '_') + desc;
+        finalName += '.jpg';
+        fileNamePreview.innerText = finalName;
+    }
+
+    descriptionInput.addEventListener('input', updateFileName);
+
+    function attachPrefixEvent(btn) {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.prefix-btn').forEach(b => {
+                b.classList.remove('bg-blue-600');
+                b.classList.add('bg-gray-700');
+            });
+            btn.classList.remove('bg-gray-700');
+            btn.classList.add('bg-blue-600');
+            currentPrefix = btn.getAttribute('data-prefix');
+            updateFileName();
+        });
+    }
+
+    document.querySelectorAll('.prefix-btn').forEach(attachPrefixEvent);
+    // Seleccionar el primero por defecto
+    document.querySelector('.prefix-btn').classList.replace('bg-gray-700', 'bg-blue-600');
+
+    addPrefixBtn.addEventListener('click', () => {
+        newPrefixDiv.classList.remove('hidden');
+        newPrefixInput.focus();
+    });
+
+    savePrefixBtn.addEventListener('click', () => {
+        let newPref = newPrefixInput.value.trim();
+        if (newPref) {
+            const newBtn = document.createElement('button');
+            newBtn.className = 'bg-gray-700 hover:bg-gray-600 text-white text-xs py-1 px-2 rounded prefix-btn';
+            newBtn.setAttribute('data-prefix', newPref);
+            newBtn.innerText = newPref;
+            prefixContainer.insertBefore(newBtn, addPrefixBtn);
+            attachPrefixEvent(newBtn);
+            newBtn.click();
+        }
+        newPrefixInput.value = '';
+        newPrefixDiv.classList.add('hidden');
+    });
+
+    // --- RELOJ ---
+    function updateClock() {
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2, '0');
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const yyyy = now.getFullYear();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        
+        const dateStr = `${dd}/${mm}/${yyyy}`;
+        const timeStr = `${hh}:${min}`;
+        
+        document.getElementById('locDateTime').innerText = `${dateStr}   ${timeStr}`;
+        return { dateStr, timeStr };
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // --- GEOLOCALIZACIÓN Y UTM SIMULADA ---
+    let geoData = { easting: "000000.00", northing: "0000000.00", location: "Buscando...", alt: "--" };
+
+    function updateGeolocation() {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(async (position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                const alt = position.coords.altitude;
+                
+                geoData.alt = alt !== null ? Math.round(alt) : "--";
+                document.getElementById('locAltitude').innerText = `Altitud: ${geoData.alt} msnm`;
+
+                // Simulación UTM rápida para el prototipo (requeriría librería como proj4js en prod real)
+                geoData.easting = (500000 + (lon * 111000 * Math.cos(lat * Math.PI / 180))).toFixed(2);
+                geoData.northing = (10000000 + (lat * 111000)).toFixed(2);
+                
+                document.getElementById('locE').innerText = geoData.easting;
+                document.getElementById('locN').innerText = geoData.northing;
+
+                // Geocodificación inversa (OpenStreetMap Nominatim)
+                try {
+                    const res = await fetch(`[https://nominatim.openstreetmap.org/reverse?format=json&lat=$](https://nominatim.openstreetmap.org/reverse?format=json&lat=$){lat}&lon=${lon}`);
+                    const data = await res.json();
+                    if(data && data.address) {
+                        const dist = data.address.city_district || data.address.suburb || data.address.neighbourhood || "";
+                        const prov = data.address.city || data.address.county || "";
+                        const dep = data.address.state || data.address.region || "";
+                        
+                        let locStr = [dist, prov, dep].filter(Boolean).join(", ").toUpperCase();
+                        geoData.location = locStr.length > 0 ? locStr : "UBICACIÓN NO ENCONTRADA";
+                        document.getElementById('locLocation').innerText = geoData.location;
+                    }
+                } catch (e) {
+                    geoData.location = "LAT: " + lat.toFixed(4) + " LON: " + lon.toFixed(4);
+                    document.getElementById('locLocation').innerText = geoData.location;
+                }
+            }, (error) => {
+                console.error("Error GPS: ", error);
+                document.getElementById('locLocation').innerText = "GPS DESACTIVADO";
+            }, { enableHighAccuracy: true });
+        }
+    }
+    updateGeolocation();
+
+    // --- CAPTURA DE IMAGEN ---
+    document.getElementById('captureBtn').addEventListener('click', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Dibujar el fotograma del video
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // CONFIGURACIÓN DE FUENTE Y ESTILOS GLOBALES
+        ctx.font = "bold 28px 'Segoe UI', Tahoma, sans-serif";
+        const padding = 20;
+
+        // 1. DIBUJAR PANEL INFERIOR DERECHO (Coordenadas y Ubicación)
+        ctx.textAlign = "right";
+        ctx.textBaseline = "top";
+        
+        // Textos a dibujar
+        const timeData = updateClock();
+        const line1 = geoData.location;
+        const line2 = `E: ${geoData.easting}    N: ${geoData.northing}`;
+        const line3 = `${timeData.dateStr}   ${timeData.timeStr}`;
+        const line4 = `Altitud: ${geoData.alt} msnm`;
+
+        // Medir ancho para dibujar el fondo negro translúcido
+        ctx.font = "bold 32px 'Segoe UI', Tahoma, sans-serif"; // Fuente un poco más grande para la foto
+        const w1 = ctx.measureText(line1).width;
+        const w2 = ctx.measureText(line2).width;
+        const w3 = ctx.measureText(line3).width;
+        const w4 = ctx.measureText(line4).width;
+        const maxTextWidth = Math.max(w1, w2, w3, w4);
+        
+        const boxWidth = maxTextWidth + 40;
+        const boxHeight = 180;
+        const boxX = canvas.width - boxWidth - padding;
+        const boxY = canvas.height - boxHeight - padding;
+
+        // Fondo Negro al 60%
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+        // Escribir Textos en Blanco
+        ctx.fillStyle = "#ffffff";
+        let textRightX = canvas.width - padding - 20;
+        let startY = boxY + 20;
+
+        ctx.font = "bold 32px 'Segoe UI', Tahoma, sans-serif";
+        ctx.fillText(line1, textRightX, startY);
+        
+        ctx.font = "normal 30px 'Segoe UI', Tahoma, sans-serif";
+        ctx.fillText(line2, textRightX, startY + 40);
+        ctx.fillText(line3, textRightX, startY + 80);
+        ctx.fillText(line4, textRightX, startY + 120);
+
+        // 2. DIBUJAR PANEL INFERIOR IZQUIERDO (Descripción)
+        const descText = descriptionInput.value.trim();
+        if (descText !== "") {
+            ctx.textAlign = "left";
+            ctx.font = "bold 32px 'Segoe UI', Tahoma, sans-serif";
+            const descW = ctx.measureText(descText).width;
+            const descBoxW = descW + 40;
+            const descBoxH = 60;
+            const descBoxX = padding;
+            const descBoxY = canvas.height - descBoxH - padding;
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            ctx.fillRect(descBoxX, descBoxY, descBoxW, descBoxH);
+            
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(descText, descBoxX + 20, descBoxY + 12);
+        }
+
+        // 3. DIBUJAR LOGO (Superior Derecho)
+        if (logoImageObj) {
+            const maxLogoHeight = 120;
+            const logoRatio = logoImageObj.width / logoImageObj.height;
+            const logoWidth = maxLogoHeight * logoRatio;
+            
+            // Fondo blanco para el logo (opcional, igual que la app)
+            const logoBoxX = canvas.width - logoWidth - (padding * 2);
+            const logoBoxY = padding;
+            
+            ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+            ctx.fillRect(logoBoxX - 10, logoBoxY - 10, logoWidth + 20, maxLogoHeight + 20);
+            
+            ctx.drawImage(logoImageObj, logoBoxX, logoBoxY, logoWidth, maxLogoHeight);
+        }
+
+        // DESCARGAR IMAGEN
+        const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+        const link = document.createElement('a');
+        link.download = fileNamePreview.innerText;
+        link.href = dataURL;
+        link.click();
+    });
+</script>
+</body>
+</html>
