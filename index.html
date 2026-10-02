@@ -3,45 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cámara Topográfica PWA</title>
+    <title>Cámara Topográfica Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+    <!-- Importar fuente técnica para los datos -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         html, body { 
-            margin: 0; padding: 0; 
-            width: 100%; height: 100%; height: 100dvh; 
-            background: #000; color: white; font-family: sans-serif; 
+            margin: 0; padding: 0; width: 100%; height: 100dvh; 
+            background: #000; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             overflow: hidden; position: fixed; 
         }
         #camera-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; align-items: center; }
         video { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { display: none; }
         
-        #logo-preview { position: absolute; top: 20px; right: 20px; z-index: 10; width: clamp(60px, 15vw, 100px); opacity: 0.9; }
+        #logo-preview { position: absolute; top: 20px; right: 20px; z-index: 10; width: clamp(60px, 15vw, 100px); opacity: 0.95; drop-shadow: 0px 2px 4px rgba(0,0,0,0.5); }
 
         .bottom-bar { 
             position: absolute; z-index: 20; bottom: 0; left: 0; width: 100%; 
             padding: 15px; box-sizing: border-box; 
-            background: linear-gradient(transparent, rgba(0,0,0,0.8)); 
+            background: linear-gradient(transparent, rgba(0,0,0,0.9)); 
             display: flex; flex-direction: row; justify-content: space-between; align-items: flex-end;
         }
 
         @media (max-width: 600px) {
             .bottom-bar { flex-direction: column; align-items: center; gap: 15px; padding-bottom: 30px; }
-            .naming-panel { width: 100%; justify-content: center; }
+            .naming-panel, .project-panel { width: 100%; justify-content: center; }
         }
         
-        .naming-panel { display: flex; gap: 5px; flex-wrap: wrap; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px; }
-        .naming-panel select, .naming-panel input { font-size: 16px; padding: 6px; border: none; border-radius: 4px; }
-        .naming-panel select { color: red; font-weight: bold; background: #fff; }
-        .naming-panel input[type="number"] { width: 60px; text-align: center; }
-        .naming-panel input[type="text"] { flex-grow: 1; max-width: 150px; text-align: left; }
+        .panel-container { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 300px; }
         
+        .input-group { display: flex; gap: 5px; flex-wrap: wrap; background: rgba(20,20,20,0.75); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(4px); }
+        .input-group select, .input-group input { font-size: 14px; padding: 6px; border: none; border-radius: 4px; background: rgba(255,255,255,0.9); font-family: 'Roboto Mono', monospace; }
+        .input-group select { color: #d32f2f; font-weight: bold; }
+        .input-group input[type="number"] { width: 50px; text-align: center; }
+        .input-group input[type="text"] { flex-grow: 1; min-width: 100px; }
+        
+        .project-input { width: 100%; box-sizing: border-box; background: rgba(20,20,20,0.75) !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; }
+        .project-input::placeholder { color: rgba(255,255,255,0.5); }
+
         #capture-btn { 
-            background: #fff; border: 5px solid #aaa; 
-            width: 70px; height: 70px; border-radius: 50%; 
-            cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            background: rgba(255,255,255,0.9); border: 4px solid #fff; outline: 3px solid rgba(255,255,255,0.3);
+            width: 65px; height: 65px; border-radius: 50%; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.6); transition: all 0.2s;
         }
-        #capture-btn:active { background: #ccc; transform: scale(0.95); }
+        #capture-btn:active { background: #d32f2f; border-color: #d32f2f; transform: scale(0.9); }
     </style>
 </head>
 <body>
@@ -51,17 +56,22 @@
     <img id="logo-preview" src="logo.png" alt="Logo" crossorigin="anonymous" onerror="this.src='https://via.placeholder.com/150?text=LOGO'">
     
     <div class="bottom-bar">
-        <div class="naming-panel">
-            <select id="prefix">
-                <option value="GEO">GEO</option>
-                <option value="GEONORT">GEONORT</option>
-                <option value="EST">EST</option>
-                <option value="CAL">CAL</option>
-            </select>
-            <span style="color:white; align-self:center; font-weight:bold;">_</span>
-            <input type="number" id="num" placeholder="066" value="066">
-            <span style="color:white; align-self:center; font-weight:bold;">_</span>
-            <input type="text" id="desc" placeholder="descripción">
+        <div class="panel-container">
+            <!-- Nuevo Campo: Nombre del Proyecto -->
+            <div class="input-group" style="padding: 4px 8px;">
+                <input type="text" id="project" class="project-input" placeholder="Nombre del Proyecto (Opcional)">
+            </div>
+            <!-- Nomenclatura del archivo -->
+            <div class="input-group">
+                <select id="prefix">
+                    <option value="GEO">GEO</option>
+                    <option value="GEONORT">GEONORT</option>
+                    <option value="EST">EST</option>
+                    <option value="CAL">CAL</option>
+                </select>
+                <input type="number" id="num" placeholder="001" value="001">
+                <input type="text" id="desc" placeholder="Descripción">
+            </div>
         </div>
         <button id="capture-btn"></button>
     </div>
@@ -72,19 +82,23 @@
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    let currentData = { lat: 0, lon: 0, alt: 0, utmE: 0, utmN: 0, address: "Buscando ubicación..." };
+    let currentData = { lat: 0, lon: 0, alt: 0, acc: 0, utmE: 0, utmN: 0, zone: "", address: "Buscando satélites..." };
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } })
         .then(stream => video.srcObject = stream)
-        .catch(err => alert("Error al acceder a la cámara: " + err));
+        .catch(err => alert("Error de cámara: " + err));
 
     if (navigator.geolocation) {
         navigator.geolocation.watchPosition(async position => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            currentData.alt = position.coords.altitude ? position.coords.altitude.toFixed(2) : "N/D";
+            currentData.acc = position.coords.accuracy ? position.coords.accuracy.toFixed(1) : "N/D";
+            currentData.alt = position.coords.altitude ? position.coords.altitude.toFixed(1) : "N/D";
             
             const utmZone = Math.floor((lon + 180) / 6) + 1;
+            const hemisphere = lat >= 0 ? 'N' : 'S';
+            currentData.zone = `${utmZone}${hemisphere}`;
+            
             proj4.defs(`EPSG:UTM${utmZone}`, `+proj=utm +zone=${utmZone} +datum=WGS84 +units=m +no_defs`);
             const utm = proj4('EPSG:4326', `EPSG:UTM${utmZone}`, [lon, lat]);
             currentData.utmE = utm[0].toFixed(2);
@@ -94,12 +108,11 @@
                 const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
                 const data = await res.json();
                 const d = data.address;
-                currentData.address = `${d.county || d.city || ''}, ${d.state || ''}, ${d.country || ''}`;
-            } catch(e) { currentData.address = "Coordenadas obtenidas"; }
+                currentData.address = `${d.county || d.city || d.town || ''}, ${d.state || ''}`;
+            } catch(e) { currentData.address = "Coordenadas capturadas"; }
         }, err => console.warn(err), { enableHighAccuracy: true });
     }
 
-    // Función auxiliar para dibujar rectángulos con esquinas redondeadas
     function drawRoundedRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
@@ -122,83 +135,98 @@
         
         const w = canvas.width;
         const h = canvas.height;
-        const fontSize = Math.max(Math.floor(w * 0.018), 16); 
-        ctx.font = `bold ${fontSize}px Arial`;
+        const fontSize = Math.max(Math.floor(w * 0.016), 14); 
+        const iconSize = fontSize * 1.1;
         
-        // 1. Dibujar Logo
+        // 1. Logo
         const logo = document.getElementById('logo-preview');
-        const logoSize = w * 0.15; 
+        const logoSize = w * 0.12; 
         ctx.drawImage(logo, w - logoSize - (w*0.02), h*0.02, logoSize, logoSize * (logo.height/logo.width));
 
-        // 2. Textos de la Derecha (Ubicación)
+        // 2. Panel Derecho (Datos Técnicos Profesionales)
         const now = new Date();
-        const dateStr = now.toLocaleDateString('es-PE');
-        const timeStr = now.toLocaleTimeString('es-PE');
+        const dateStr = now.toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute:'2-digit', second:'2-digit' });
+        const projectName = document.getElementById('project').value.trim();
         
-        const line1 = currentData.address;
-        const line2 = `E: ${currentData.utmE}   N: ${currentData.utmN}`;
-        const line3 = `${dateStr}   ${timeStr}`; // 3 espacios añadidos entre fecha y hora
-        const line4 = `Altitud: ${currentData.alt} msnm`;
-
-        // Calcular el ancho de la línea más larga para ajustar la caja
-        const metrics1 = ctx.measureText(line1).width;
-        const metrics2 = ctx.measureText(line2).width;
-        const metrics3 = ctx.measureText(line3).width;
-        const metrics4 = ctx.measureText(line4).width;
-        const maxRightWidth = Math.max(metrics1, metrics2, metrics3, metrics4);
-
-        const padX = w * 0.015; // Relleno horizontal dinámico
-        const padY = h * 0.015; // Relleno vertical dinámico
-        const lineHeight = fontSize * 1.5;
-        const borderRadius = 15; // Curvatura de las esquinas
+        // Configurar fuente técnica
+        ctx.font = `bold ${fontSize}px "Roboto Mono", monospace`;
         
-        // Dimensiones del fondo derecho
+        const lines = [];
+        if(projectName !== "") lines.push({ text: `PRY: ${projectName.toUpperCase()}`, icon: "📂", color: "#FFEB3B" });
+        lines.push({ text: currentData.address, icon: "📍", color: "#FFFFFF" });
+        lines.push({ text: `E: ${currentData.utmE}  N: ${currentData.utmN}`, icon: "📐", color: "#FFFFFF" });
+        lines.push({ text: `Datum: WGS84  Zona: ${currentData.zone}`, icon: "🌐", color: "#90CAF9" });
+        lines.push({ text: `Alt: ${currentData.alt}m  Prec: ±${currentData.acc}m`, icon: "🏔️", color: "#A5D6A7" });
+        lines.push({ text: `${dateStr}    ${timeStr}`, icon: "⏱️", color: "#FFFFFF" });
+
+        // Calcular ancho máximo basado en la nueva fuente
+        let maxRightWidth = 0;
+        lines.forEach(line => {
+            const width = ctx.measureText(line.text).width + iconSize + 15;
+            if(width > maxRightWidth) maxRightWidth = width;
+        });
+
+        const padX = w * 0.015; 
+        const padY = h * 0.015; 
+        const lineHeight = fontSize * 1.6;
+        const borderRadius = 12; 
+        
         const rectWRight = maxRightWidth + (padX * 2);
-        const rectHRight = (lineHeight * 4) + (padY * 2);
+        const rectHRight = (lineHeight * lines.length) + (padY * 2);
         const rectXRight = w - rectWRight - (w * 0.02);
         const rectYRight = h - rectHRight - (h * 0.02);
 
-        // Dibujar fondo derecho (redondeado y ajustado)
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        // Fondo derecho negro elegante con borde sutil
+        ctx.fillStyle = "rgba(10, 10, 12, 0.75)";
         drawRoundedRect(ctx, rectXRight, rectYRight, rectWRight, rectHRight, borderRadius);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
         
-        // Escribir texto derecho
-        ctx.fillStyle = "white";
-        ctx.fillText(line1, rectXRight + padX, rectYRight + padY + fontSize);
-        ctx.fillText(line2, rectXRight + padX, rectYRight + padY + fontSize + lineHeight);
-        ctx.fillText(line3, rectXRight + padX, rectYRight + padY + fontSize + (lineHeight * 2));
-        ctx.fillText(line4, rectXRight + padX, rectYRight + padY + fontSize + (lineHeight * 3));
+        // Escribir líneas con Iconos y Colores
+        lines.forEach((line, index) => {
+            const yPos = rectYRight + padY + fontSize + (lineHeight * index);
+            
+            // Dibujar Icono
+            ctx.fillStyle = "rgba(255,255,255,0.9)";
+            ctx.font = `${iconSize}px Arial`; // Emoji font
+            ctx.fillText(line.icon, rectXRight + padX, yPos);
+            
+            // Dibujar Texto
+            ctx.fillStyle = line.color;
+            ctx.font = `bold ${fontSize}px "Roboto Mono", monospace`;
+            ctx.fillText(line.text, rectXRight + padX + iconSize + 10, yPos);
+        });
 
-        // 3. Textos de la Izquierda (Nomenclatura)
+        // 3. Panel Izquierdo (Nomenclatura)
         const prefix = document.getElementById('prefix').value;
         const num = document.getElementById('num').value.padStart(3, '0');
-        const desc = document.getElementById('desc').value;
+        const desc = document.getElementById('desc').value.trim();
         const fileName = `${prefix}_${num}${desc ? '_' + desc : ''}`;
         
-        const prefixText = `${prefix}_`;
-        const sufixText = `${num}${desc ? '_' + desc : ''}`;
-        const fullLeftText = prefixText + sufixText;
-
-        // Calcular el ancho exacto del texto izquierdo
+        const fullLeftText = fileName;
+        ctx.font = `bold ${fontSize * 1.2}px "Roboto Mono", monospace`; // Letra un poco más grande
         const maxLeftWidth = ctx.measureText(fullLeftText).width;
         
-        // Dimensiones del fondo izquierdo
         const rectWLeft = maxLeftWidth + (padX * 2);
-        const rectHLeft = lineHeight + (padY * 2);
+        const rectHLeft = (fontSize * 1.2) + (padY * 2);
         const rectXLeft = w * 0.02;
         const rectYLeft = h - rectHLeft - (h * 0.02);
 
-        // Dibujar fondo izquierdo (redondeado y ajustado)
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        // Fondo izquierdo
+        ctx.fillStyle = "rgba(10, 10, 12, 0.75)";
         drawRoundedRect(ctx, rectXLeft, rectYLeft, rectWLeft, rectHLeft, borderRadius);
+        ctx.stroke(); // Mantiene el borde sutil
         
-        // Escribir texto izquierdo (Rojo y Blanco)
-        ctx.fillStyle = "red";
-        ctx.fillText(prefixText, rectXLeft + padX, rectYLeft + padY + fontSize);
+        // Escribir texto izquierdo (Prefijo Rojo, Resto Blanco)
+        const prefixText = `${prefix}_`;
+        ctx.fillStyle = "#F44336"; // Rojo profesional
+        ctx.fillText(prefixText, rectXLeft + padX, rectYLeft + padY + (fontSize * 1.2));
         
-        ctx.fillStyle = "white";
+        ctx.fillStyle = "#FFFFFF";
         const prefixWidth = ctx.measureText(prefixText).width;
-        ctx.fillText(sufixText, rectXLeft + padX + prefixWidth, rectYLeft + padY + fontSize);
+        ctx.fillText(`${num}${desc ? '_' + desc : ''}`, rectXLeft + padX + prefixWidth, rectYLeft + padY + (fontSize * 1.2));
 
         // Descargar Imagen
         const link = document.createElement('a');
