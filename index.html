@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cámara Topográfica PWA</title>
+    <!-- Librería para convertir Lat/Lon a UTM -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+    <style>
+        body {
+            margin: 0;
+            background: #222;
+            color: white;
+            font-family: sans-serif;
+            overflow: hidden;
+        }
+
+        #camera-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        video {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        canvas {
+            display: none;
+        }
+
+        /* Controles de la cámara superpuestos */
+        .ui-layer {
+            position: absolute;
+            z-index: 10;
+            bottom: 0;
+            width: 100%;
+            padding: 15px;
+            box-sizing: border-box;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        /* Panel de nomenclatura (Izquierda) */
+        .naming-panel {
+            display: flex;
+            gap: 5px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .naming-panel select {
+            color: red;
+            font-weight: bold;
+            border: none;
+            background: #fff;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .naming-panel input {
+            padding: 5px;
+            border: none;
+            border-radius: 4px;
+            width: 60px;
+            text-align: center;
+        }
+
+        .naming-panel input[type="text"] {
+            width: 120px;
+            text-align: left;
+        }
+
+        /* Botón de captura */
+        #capture-btn {
+            background: #fff;
+            border: 5px solid #aaa;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            cursor: pointer;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 20px;
+            z-index: 20;
+        }
+
+        #capture-btn:active {
+            background: #ccc;
+        }
+
+        /* Logo (Derecha superior) */
+        #logo-preview {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            width: 80px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="camera-container">
+        <video id="video" autoplay playsinline></video>
+        <!-- Logo predeterminado -->
+        <img id="logo-preview" src="logo.png" 
+        alt="Logo corporativo"
+            crossorigin="anonymous">
+
+        <div class="ui-layer">
+            <!-- Panel Izquierdo: Nomenclatura -->
+            <div class="naming-panel">
+                <select id="prefix">
+                    <option value="GEO">GEO</option>
+                    <option value="GEONORT">GEONORT</option>
+                    <option value="EST">EST</option>
+                    <option value="CAL">CAL</option>
+                </select>
+                <span style="color:white; align-self:center;">_</span>
+                <input type="number" id="num" placeholder="066" value="066">
+                <span style="color:white; align-self:center;">_</span>
+                <input type="text" id="desc" placeholder="descripción">
+            </div>
+        </div>
+
+        <button id="capture-btn"></button>
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Variables de geolocalización
+        let currentData = { lat: 0, lon: 0, alt: 0, utmE: 0, utmN: 0, address: "Buscando ubicación..." };
+
+        // Inicializar Cámara Trasera
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })
+            .then(stream => video.srcObject = stream)
+            .catch(err => alert("Error al acceder a la cámara: " + err));
+
+        // Obtener Ubicación y Altitud
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(async position => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                currentData.alt = position.coords.altitude ? position.coords.altitude.toFixed(2) : "N/D";
+
+                // Conversión rápida a UTM usando Proj4js (Aproximación Zona WGS84)
+                const utmZone = Math.floor((lon + 180) / 6) + 1;
+                proj4.defs(`EPSG:UTM${utmZone}`, `+proj=utm +zone=${utmZone} +datum=WGS84 +units=m +no_defs`);
+                const utm = proj4('EPSG:4326', `EPSG:UTM${utmZone}`, [lon, lat]);
+                currentData.utmE = utm[0].toFixed(2);
+                currentData.utmN = utm[1].toFixed(2);
+
+                // Geocodificación inversa (OpenStreetMap API Gratuita)
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                    const data = await res.json();
+                    const d = data.address;
+                    currentData.address = `${d.county || d.city || ''}, ${d.state || ''}, ${d.country || ''}`;
+                } catch (e) { currentData.address = "Ubicación no disponible"; }
+
+                currentData.lat = lat;
+                currentData.lon = lon;
+            }, err => console.warn(err), { enableHighAccuracy: true });
+        }
+
+        // Capturar y dibujar
+        document.getElementById('capture-btn').addEventListener('click', () => {
+            // Configurar dimensiones reales de la foto
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // 1. Dibujar el video
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // 2. Dibujar Logo (Superior derecha)
+            const logo = document.getElementById('logo-preview');
+            const logoSize = canvas.width * 0.15;
+            ctx.drawImage(logo, canvas.width - logoSize - 40, 40, logoSize, logoSize * (logo.height / logo.width));
+
+            // 3. Dibujar textos (Inferior derecha)
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('es-PE');
+            const timeStr = now.toLocaleTimeString('es-PE');
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            ctx.fillRect(canvas.width - 600, canvas.height - 220, 580, 200); // Fondo semitransparente
+
+            ctx.fillStyle = "white";
+            ctx.font = "bold 24px Arial";
+            ctx.fillText(currentData.address, canvas.width - 580, canvas.height - 180);
+            ctx.fillText(`E: ${currentData.utmE}   N: ${currentData.utmN}`, canvas.width - 580, canvas.height - 140);
+            ctx.fillText(`${dateStr} ${timeStr}`, canvas.width - 580, canvas.height - 100);
+            ctx.fillText(`Altitud: ${currentData.alt} msnm`, canvas.width - 580, canvas.height - 60);
+
+            // 4. Nombre del archivo y marca de agua izquierda
+            const prefix = document.getElementById('prefix').value;
+            const num = document.getElementById('num').value.padStart(3, '0');
+            const desc = document.getElementById('desc').value;
+            const fileName = `${prefix}_${num}${desc ? '_' + desc : ''}.jpg`;
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            ctx.fillRect(20, canvas.height - 80, 400, 60);
+            ctx.fillStyle = "red";
+            ctx.fillText(`${prefix}_`, 40, canvas.height - 40);
+            ctx.fillStyle = "white";
+            const offset = ctx.measureText(`${prefix}_`).width;
+            ctx.fillText(`${num}_${desc}`, 40 + offset, canvas.height - 40);
+
+            // Descargar la imagen
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+        });
+    </script>
+</body>
+
+</html>
