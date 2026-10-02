@@ -3,10 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Etiquetas para forzar el modo App en iOS y Android -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    
     <title>Cámara Topográfica Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
-    <!-- Importar fuente técnica para los datos -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    
     <style>
         html, body { 
             margin: 0; padding: 0; width: 100%; height: 100dvh; 
@@ -17,6 +23,14 @@
         video { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { display: none; }
         
+        /* Botón de pantalla completa superior izquierdo */
+        #fullscreen-btn {
+            position: absolute; top: 20px; left: 20px; z-index: 10;
+            background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px; padding: 10px 15px; cursor: pointer; font-size: 20px;
+            backdrop-filter: blur(4px); box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
         #logo-preview { position: absolute; top: 20px; right: 20px; z-index: 10; width: clamp(60px, 15vw, 100px); opacity: 0.95; drop-shadow: 0px 2px 4px rgba(0,0,0,0.5); }
 
         .bottom-bar { 
@@ -53,21 +67,22 @@
 
 <div id="camera-container">
     <video id="video" autoplay playsinline></video>
+    <button id="fullscreen-btn" title="Pantalla Completa">⛶</button>
     <img id="logo-preview" src="logo.png" alt="Logo" crossorigin="anonymous" onerror="this.src='https://via.placeholder.com/150?text=LOGO'">
     
     <div class="bottom-bar">
         <div class="panel-container">
-            <!-- Nuevo Campo: Nombre del Proyecto -->
             <div class="input-group" style="padding: 4px 8px;">
                 <input type="text" id="project" class="project-input" placeholder="Nombre del Proyecto (Opcional)">
             </div>
-            <!-- Nomenclatura del archivo -->
             <div class="input-group">
                 <select id="prefix">
                     <option value="GEO">GEO</option>
                     <option value="GEONORT">GEONORT</option>
                     <option value="EST">EST</option>
                     <option value="CAL">CAL</option>
+                    <!-- Opción para añadir nuevos -->
+                    <option value="_ADD_" style="color: blue;">+ Añadir...</option>
                 </select>
                 <input type="number" id="num" placeholder="001" value="001">
                 <input type="text" id="desc" placeholder="Descripción">
@@ -79,6 +94,55 @@
 </div>
 
 <script>
+    // --- Lógica de Pantalla Completa ---
+    const fsBtn = document.getElementById('fullscreen-btn');
+    fsBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => console.log(err));
+        } else {
+            document.exitFullscreen();
+        }
+    });
+
+    // --- Lógica de Prefijos Personalizados ---
+    const prefixSelect = document.getElementById('prefix');
+    // Cargar prefijos guardados en la memoria del celular
+    const savedPrefixes = JSON.parse(localStorage.getItem('customPrefixes')) || [];
+    
+    savedPrefixes.forEach(pref => {
+        const opt = document.createElement('option');
+        opt.value = pref;
+        opt.textContent = pref;
+        // Insertarlos antes del botón de "+ Añadir..."
+        prefixSelect.insertBefore(opt, prefixSelect.querySelector('option[value="_ADD_"]'));
+    });
+
+    prefixSelect.addEventListener('change', function() {
+        if (this.value === '_ADD_') {
+            const newPrefix = prompt("Escribe el nuevo prefijo (Ejemplo: ENSAYO, TP):");
+            
+            if (newPrefix && newPrefix.trim() !== "") {
+                const formattedPrefix = newPrefix.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, ''); // Limpiar caracteres raros
+                
+                // Si el prefijo no existe ya en la lista, lo añadimos
+                if (![...this.options].some(opt => opt.value === formattedPrefix)) {
+                    const opt = document.createElement('option');
+                    opt.value = formattedPrefix;
+                    opt.textContent = formattedPrefix;
+                    this.insertBefore(opt, this.querySelector('option[value="_ADD_"]'));
+                    
+                    // Guardarlo permanentemente
+                    savedPrefixes.push(formattedPrefix);
+                    localStorage.setItem('customPrefixes', JSON.stringify(savedPrefixes));
+                }
+                this.value = formattedPrefix; // Seleccionar el nuevo
+            } else {
+                this.selectedIndex = 0; // Volver a "GEO" si el usuario cancela
+            }
+        }
+    });
+
+    // --- Lógica de Cámara y Topografía ---
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -138,18 +202,15 @@
         const fontSize = Math.max(Math.floor(w * 0.016), 14); 
         const iconSize = fontSize * 1.1;
         
-        // 1. Logo
         const logo = document.getElementById('logo-preview');
         const logoSize = w * 0.12; 
         ctx.drawImage(logo, w - logoSize - (w*0.02), h*0.02, logoSize, logoSize * (logo.height/logo.width));
 
-        // 2. Panel Derecho (Datos Técnicos Profesionales)
         const now = new Date();
         const dateStr = now.toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute:'2-digit', second:'2-digit' });
         const projectName = document.getElementById('project').value.trim();
         
-        // Configurar fuente técnica
         ctx.font = `bold ${fontSize}px "Roboto Mono", monospace`;
         
         const lines = [];
@@ -160,7 +221,6 @@
         lines.push({ text: `Alt: ${currentData.alt}m  Prec: ±${currentData.acc}m`, icon: "🏔️", color: "#A5D6A7" });
         lines.push({ text: `${dateStr}    ${timeStr}`, icon: "⏱️", color: "#FFFFFF" });
 
-        // Calcular ancho máximo basado en la nueva fuente
         let maxRightWidth = 0;
         lines.forEach(line => {
             const width = ctx.measureText(line.text).width + iconSize + 15;
@@ -177,36 +237,29 @@
         const rectXRight = w - rectWRight - (w * 0.02);
         const rectYRight = h - rectHRight - (h * 0.02);
 
-        // Fondo derecho negro elegante con borde sutil
         ctx.fillStyle = "rgba(10, 10, 12, 0.75)";
         drawRoundedRect(ctx, rectXRight, rectYRight, rectWRight, rectHRight, borderRadius);
         ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Escribir líneas con Iconos y Colores
         lines.forEach((line, index) => {
             const yPos = rectYRight + padY + fontSize + (lineHeight * index);
-            
-            // Dibujar Icono
             ctx.fillStyle = "rgba(255,255,255,0.9)";
-            ctx.font = `${iconSize}px Arial`; // Emoji font
+            ctx.font = `${iconSize}px Arial`; 
             ctx.fillText(line.icon, rectXRight + padX, yPos);
-            
-            // Dibujar Texto
             ctx.fillStyle = line.color;
             ctx.font = `bold ${fontSize}px "Roboto Mono", monospace`;
             ctx.fillText(line.text, rectXRight + padX + iconSize + 10, yPos);
         });
 
-        // 3. Panel Izquierdo (Nomenclatura)
         const prefix = document.getElementById('prefix').value;
         const num = document.getElementById('num').value.padStart(3, '0');
         const desc = document.getElementById('desc').value.trim();
         const fileName = `${prefix}_${num}${desc ? '_' + desc : ''}`;
         
         const fullLeftText = fileName;
-        ctx.font = `bold ${fontSize * 1.2}px "Roboto Mono", monospace`; // Letra un poco más grande
+        ctx.font = `bold ${fontSize * 1.2}px "Roboto Mono", monospace`; 
         const maxLeftWidth = ctx.measureText(fullLeftText).width;
         
         const rectWLeft = maxLeftWidth + (padX * 2);
@@ -214,21 +267,18 @@
         const rectXLeft = w * 0.02;
         const rectYLeft = h - rectHLeft - (h * 0.02);
 
-        // Fondo izquierdo
         ctx.fillStyle = "rgba(10, 10, 12, 0.75)";
         drawRoundedRect(ctx, rectXLeft, rectYLeft, rectWLeft, rectHLeft, borderRadius);
-        ctx.stroke(); // Mantiene el borde sutil
+        ctx.stroke(); 
         
-        // Escribir texto izquierdo (Prefijo Rojo, Resto Blanco)
         const prefixText = `${prefix}_`;
-        ctx.fillStyle = "#F44336"; // Rojo profesional
+        ctx.fillStyle = "#F44336"; 
         ctx.fillText(prefixText, rectXLeft + padX, rectYLeft + padY + (fontSize * 1.2));
         
         ctx.fillStyle = "#FFFFFF";
         const prefixWidth = ctx.measureText(prefixText).width;
         ctx.fillText(`${num}${desc ? '_' + desc : ''}`, rectXLeft + padX + prefixWidth, rectYLeft + padY + (fontSize * 1.2));
 
-        // Descargar Imagen
         const link = document.createElement('a');
         link.download = fileName + '.jpg';
         link.href = canvas.toDataURL('image/jpeg', 0.95);
