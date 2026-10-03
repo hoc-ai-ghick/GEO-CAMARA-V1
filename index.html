@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- Etiquetas para forzar el modo App en iOS y Android -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
@@ -23,13 +22,19 @@
         video { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { display: none; }
         
-        /* Botón de pantalla completa superior izquierdo */
-        #fullscreen-btn {
+        /* Contenedor de botones superiores izquierdos */
+        .top-controls {
             position: absolute; top: 20px; left: 20px; z-index: 10;
+            display: flex; gap: 10px;
+        }
+
+        .top-btn {
             background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3);
             border-radius: 8px; padding: 10px 15px; cursor: pointer; font-size: 20px;
             backdrop-filter: blur(4px); box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            display: flex; justify-content: center; align-items: center;
         }
+        .top-btn:active { background: rgba(255,255,255,0.3); }
 
         #logo-preview { position: absolute; top: 20px; right: 20px; z-index: 10; width: clamp(60px, 15vw, 100px); opacity: 0.95; drop-shadow: 0px 2px 4px rgba(0,0,0,0.5); }
 
@@ -67,7 +72,13 @@
 
 <div id="camera-container">
     <video id="video" autoplay playsinline></video>
-    <button id="fullscreen-btn" title="Pantalla Completa">⛶</button>
+    
+    <!-- Botones de Control de Pantalla -->
+    <div class="top-controls">
+        <button id="fullscreen-btn" class="top-btn" title="Pantalla Completa">⛶</button>
+        <button id="rotate-btn" class="top-btn" title="Forzar Rotación">🔄</button>
+    </div>
+
     <img id="logo-preview" src="logo.png" alt="Logo" crossorigin="anonymous" onerror="this.src='https://via.placeholder.com/150?text=LOGO'">
     
     <div class="bottom-bar">
@@ -81,7 +92,6 @@
                     <option value="GEONORT">GEONORT</option>
                     <option value="EST">EST</option>
                     <option value="CAL">CAL</option>
-                    <!-- Opción para añadir nuevos -->
                     <option value="_ADD_" style="color: blue;">+ Añadir...</option>
                 </select>
                 <input type="number" id="num" placeholder="001" value="001">
@@ -94,6 +104,25 @@
 </div>
 
 <script>
+    // --- Lógica de Forzar Rotación ---
+    const rotateBtn = document.getElementById('rotate-btn');
+    rotateBtn.addEventListener('click', async () => {
+        if (screen.orientation && screen.orientation.lock) {
+            try {
+                const currentOrientation = screen.orientation.type;
+                if (currentOrientation.startsWith('portrait')) {
+                    await screen.orientation.lock('landscape');
+                } else {
+                    await screen.orientation.lock('portrait');
+                }
+            } catch (error) {
+                alert("Tu dispositivo requiere que pongas la app en Pantalla Completa (⛶) primero para forzar la rotación.");
+            }
+        } else {
+            alert("Tu navegador no soporta la función de forzar rotación.");
+        }
+    });
+
     // --- Lógica de Pantalla Completa ---
     const fsBtn = document.getElementById('fullscreen-btn');
     fsBtn.addEventListener('click', () => {
@@ -104,40 +133,35 @@
         }
     });
 
-    // --- Lógica de Prefijos Personalizados ---
+    // --- Lógica de Prefijos Personalizados (Memoria) ---
     const prefixSelect = document.getElementById('prefix');
-    // Cargar prefijos guardados en la memoria del celular
     const savedPrefixes = JSON.parse(localStorage.getItem('customPrefixes')) || [];
     
     savedPrefixes.forEach(pref => {
         const opt = document.createElement('option');
         opt.value = pref;
         opt.textContent = pref;
-        // Insertarlos antes del botón de "+ Añadir..."
         prefixSelect.insertBefore(opt, prefixSelect.querySelector('option[value="_ADD_"]'));
     });
 
     prefixSelect.addEventListener('change', function() {
         if (this.value === '_ADD_') {
             const newPrefix = prompt("Escribe el nuevo prefijo (Ejemplo: ENSAYO, TP):");
-            
             if (newPrefix && newPrefix.trim() !== "") {
-                const formattedPrefix = newPrefix.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, ''); // Limpiar caracteres raros
+                const formattedPrefix = newPrefix.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, ''); 
                 
-                // Si el prefijo no existe ya en la lista, lo añadimos
                 if (![...this.options].some(opt => opt.value === formattedPrefix)) {
                     const opt = document.createElement('option');
                     opt.value = formattedPrefix;
                     opt.textContent = formattedPrefix;
                     this.insertBefore(opt, this.querySelector('option[value="_ADD_"]'));
                     
-                    // Guardarlo permanentemente
                     savedPrefixes.push(formattedPrefix);
                     localStorage.setItem('customPrefixes', JSON.stringify(savedPrefixes));
                 }
-                this.value = formattedPrefix; // Seleccionar el nuevo
+                this.value = formattedPrefix; 
             } else {
-                this.selectedIndex = 0; // Volver a "GEO" si el usuario cancela
+                this.selectedIndex = 0; 
             }
         }
     });
