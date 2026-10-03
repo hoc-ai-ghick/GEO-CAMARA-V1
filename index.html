@@ -232,17 +232,17 @@
 
         const now = new Date();
         const dateStr = now.toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute:'2-digit', second:'2-digit' });
+        const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute:'2-digit' });
         const projectName = document.getElementById('project').value.trim();
         
         ctx.font = `bold ${fontSize}px "Roboto Mono", monospace`;
         
         const lines = [];
-        if(projectName !== "") lines.push({ text: `PRY: ${projectName.toUpperCase()}`, icon: "📂", color: "#FFEB3B" });
+        if(projectName !== "") lines.push({ text: `PROY: ${projectName.toUpperCase()}`, icon: "📂", color: "#FFEB3B" });
         lines.push({ text: currentData.address, icon: "📍", color: "#FFFFFF" });
         lines.push({ text: `E: ${currentData.utmE}  N: ${currentData.utmN}`, icon: "📐", color: "#FFFFFF" });
-        lines.push({ text: `Datum: WGS84  Zona: ${currentData.zone}`, icon: "🌐", color: "#90CAF9" });
-        lines.push({ text: `Alt: ${currentData.alt}m  Prec: ±${currentData.acc}m`, icon: "🏔️", color: "#A5D6A7" });
+        lines.push({ text: `Datum: WGS84  Zona: ${currentData.zone}`, icon: "🌐", color: "#FFFFFF" });
+        lines.push({ text: `Alt: ${currentData.alt}m  Prec: ±${currentData.acc}m`, icon: "🏔️", color: "#FFFFFF" });
         lines.push({ text: `${dateStr}    ${timeStr}`, icon: "⏱️", color: "#FFFFFF" });
 
         let maxRightWidth = 0;
