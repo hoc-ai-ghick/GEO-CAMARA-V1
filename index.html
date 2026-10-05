@@ -22,7 +22,6 @@
         video { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { display: none; }
         
-        /* Contenedor de botones superiores izquierdos */
         .top-controls {
             position: absolute; top: 20px; left: 20px; z-index: 10;
             display: flex; gap: 10px;
@@ -36,7 +35,21 @@
         }
         .top-btn:active { background: rgba(255,255,255,0.3); }
 
-        #logo-preview { position: absolute; top: 20px; right: 20px; z-index: 10; width: clamp(60px, 15vw, 100px); opacity: 0.95; drop-shadow: 0px 2px 4px rgba(0,0,0,0.5); }
+        #logo-preview { position: absolute; top: 20px; right: 20px; z-index: 10; width: clamp(60px, 15vw, 100px); opacity: 1; }
+
+        /* Controles de Zoom */
+        #zoom-container {
+            position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%);
+            z-index: 20; display: none; align-items: center; gap: 10px;
+            background: rgba(10, 10, 12, 0.75); padding: 8px 15px; border-radius: 25px;
+            border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(4px);
+        }
+        .zoom-btn {
+            background: rgba(255,255,255,0.1); color: white; border: none;
+            padding: 5px 12px; border-radius: 15px; font-weight: bold; font-size: 14px; cursor: pointer;
+        }
+        .zoom-btn:active { background: rgba(255,255,255,0.3); }
+        input[type=range] { width: 100px; accent-color: #F44336; }
 
         .bottom-bar { 
             position: absolute; z-index: 20; bottom: 0; left: 0; width: 100%; 
@@ -48,6 +61,7 @@
         @media (max-width: 600px) {
             .bottom-bar { flex-direction: column; align-items: center; gap: 15px; padding-bottom: 30px; }
             .naming-panel, .project-panel { width: 100%; justify-content: center; }
+            #zoom-container { bottom: 180px; }
         }
         
         .panel-container { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 300px; }
@@ -73,10 +87,17 @@
 <div id="camera-container">
     <video id="video" autoplay playsinline></video>
     
-    <!-- Botones de Control de Pantalla -->
     <div class="top-controls">
         <button id="fullscreen-btn" class="top-btn" title="Pantalla Completa">⛶</button>
         <button id="rotate-btn" class="top-btn" title="Forzar Rotación">🔄</button>
+    </div>
+
+    <!-- Módulo de Zoom -->
+    <div id="zoom-container">
+        <button class="zoom-btn" data-zoom="0.5">0.5x</button>
+        <button class="zoom-btn" data-zoom="1">1x</button>
+        <button class="zoom-btn" data-zoom="2">2x</button>
+        <input type="range" id="zoom-slider" min="1" max="10" step="0.1" value="1">
     </div>
 
     <img id="logo-preview" src="logo.png" alt="Logo" crossorigin="anonymous" onerror="this.src='https://via.placeholder.com/150?text=LOGO'">
@@ -118,8 +139,6 @@
             } catch (error) {
                 alert("Tu dispositivo requiere que pongas la app en Pantalla Completa (⛶) primero para forzar la rotación.");
             }
-        } else {
-            alert("Tu navegador no soporta la función de forzar rotación.");
         }
     });
 
@@ -133,7 +152,7 @@
         }
     });
 
-    // --- Lógica de Prefijos Personalizados (Memoria) ---
+    // --- Lógica de Prefijos Personalizados ---
     const prefixSelect = document.getElementById('prefix');
     const savedPrefixes = JSON.parse(localStorage.getItem('customPrefixes')) || [];
     
@@ -146,16 +165,14 @@
 
     prefixSelect.addEventListener('change', function() {
         if (this.value === '_ADD_') {
-            const newPrefix = prompt("Escribe el nuevo prefijo (Ejemplo: ENSAYO, TP):");
+            const newPrefix = prompt("Escribe el nuevo prefijo:");
             if (newPrefix && newPrefix.trim() !== "") {
                 const formattedPrefix = newPrefix.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, ''); 
-                
                 if (![...this.options].some(opt => opt.value === formattedPrefix)) {
                     const opt = document.createElement('option');
                     opt.value = formattedPrefix;
                     opt.textContent = formattedPrefix;
                     this.insertBefore(opt, this.querySelector('option[value="_ADD_"]'));
-                    
                     savedPrefixes.push(formattedPrefix);
                     localStorage.setItem('customPrefixes', JSON.stringify(savedPrefixes));
                 }
@@ -166,14 +183,43 @@
         }
     });
 
-    // --- Lógica de Cámara y Topografía ---
+    // --- Lógica de Cámara, Zoom y Topografía ---
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     let currentData = { lat: 0, lon: 0, alt: 0, acc: 0, utmE: 0, utmN: 0, zone: "", address: "Buscando satélites..." };
+    let videoTrack = null;
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } })
-        .then(stream => video.srcObject = stream)
+        .then(stream => {
+            video.srcObject = stream;
+            videoTrack = stream.getVideoTracks()[0];
+            
+            // Configurar Zoom si el hardware lo permite
+            const capabilities = videoTrack.getCapabilities();
+            if (capabilities.zoom) {
+                const zoomContainer = document.getElementById('zoom-container');
+                const slider = document.getElementById('zoom-slider');
+                
+                zoomContainer.style.display = 'flex';
+                slider.min = capabilities.zoom.min;
+                slider.max = Math.min(capabilities.zoom.max, 10);
+                slider.step = capabilities.zoom.step;
+                slider.value = videoTrack.getSettings().zoom;
+
+                const applyZoom = (val) => {
+                    let targetZoom = Math.max(slider.min, Math.min(val, slider.max));
+                    slider.value = targetZoom;
+                    videoTrack.applyConstraints({advanced: [{zoom: targetZoom}]});
+                };
+
+                slider.addEventListener('input', (e) => applyZoom(parseFloat(e.target.value)));
+                
+                document.querySelectorAll('.zoom-btn').forEach(btn => {
+                    btn.addEventListener('click', () => applyZoom(parseFloat(btn.dataset.zoom)));
+                });
+            }
+        })
         .catch(err => alert("Error de cámara: " + err));
 
     if (navigator.geolocation) {
@@ -189,8 +235,10 @@
             
             proj4.defs(`EPSG:UTM${utmZone}`, `+proj=utm +zone=${utmZone} +datum=WGS84 +units=m +no_defs`);
             const utm = proj4('EPSG:4326', `EPSG:UTM${utmZone}`, [lon, lat]);
+            
             currentData.utmE = utm[0].toFixed(2);
-            currentData.utmN = utm[1].toFixed(2);
+            // Adaptación para Google Earth (Suma 10,000,000 si está en hemisferio sur)
+            currentData.utmN = utm[1] < 0 ? (utm[1] + 10000000).toFixed(2) : utm[1].toFixed(2);
 
             try {
                 const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
@@ -226,23 +274,31 @@
         const fontSize = Math.max(Math.floor(w * 0.016), 14); 
         const iconSize = fontSize * 1.1;
         
+        // 1. Dibujar Logo con Fondo Transparente Blanco
         const logo = document.getElementById('logo-preview');
         const logoSize = w * 0.12; 
-        ctx.drawImage(logo, w - logoSize - (w*0.02), h*0.02, logoSize, logoSize * (logo.height/logo.width));
+        const logoH = logoSize * (logo.height/logo.width);
+        const logoX = w - logoSize - (w*0.02);
+        const logoY = h*0.02;
 
+        ctx.fillStyle = "rgba(255, 255, 255, 0.7)"; // Fondo 70% opacidad blanco
+        drawRoundedRect(ctx, logoX - 10, logoY - 10, logoSize + 20, logoH + 20, 12);
+        ctx.drawImage(logo, logoX, logoY, logoSize, logoH);
+
+        // 2. Panel Derecho (Datos)
         const now = new Date();
         const dateStr = now.toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute:'2-digit' });
+        const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute:'2-digit', second:'2-digit' });
         const projectName = document.getElementById('project').value.trim();
         
         ctx.font = `bold ${fontSize}px "Roboto Mono", monospace`;
         
         const lines = [];
-        if(projectName !== "") lines.push({ text: `PROY: ${projectName.toUpperCase()}`, icon: "📂", color: "#FFEB3B" });
+        if(projectName !== "") lines.push({ text: `PRY: ${projectName.toUpperCase()}`, icon: "📂", color: "#FFEB3B" });
         lines.push({ text: currentData.address, icon: "📍", color: "#FFFFFF" });
         lines.push({ text: `E: ${currentData.utmE}  N: ${currentData.utmN}`, icon: "📐", color: "#FFFFFF" });
-        lines.push({ text: `Datum: WGS84  Zona: ${currentData.zone}`, icon: "🌐", color: "#FFFFFF" });
-        lines.push({ text: `Alt: ${currentData.alt}m  Prec: ±${currentData.acc}m`, icon: "🏔️", color: "#FFFFFF" });
+        lines.push({ text: `Datum: WGS84  Zona: ${currentData.zone}`, icon: "🌐", color: "#90CAF9" });
+        lines.push({ text: `Alt: ${currentData.alt}m  Prec: ±${currentData.acc}m`, icon: "🏔️", color: "#A5D6A7" });
         lines.push({ text: `${dateStr}    ${timeStr}`, icon: "⏱️", color: "#FFFFFF" });
 
         let maxRightWidth = 0;
@@ -277,6 +333,7 @@
             ctx.fillText(line.text, rectXRight + padX + iconSize + 10, yPos);
         });
 
+        // 3. Panel Izquierdo (Nomenclatura)
         const prefix = document.getElementById('prefix').value;
         const num = document.getElementById('num').value.padStart(3, '0');
         const desc = document.getElementById('desc').value.trim();
