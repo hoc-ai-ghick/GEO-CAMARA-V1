@@ -40,39 +40,13 @@
             width: clamp(60px, 15vw, 100px); opacity: 1; 
         }
 
-        /* ----- MÓDULO DE ZOOM POR BOTONES ----- */
-        .zoom-panel {
-            display: none; /* Se activa por JS si hay soporte */
-            flex-direction: row;
-            gap: 5px;
-            background: rgba(10, 10, 12, 0.75);
-            padding: 5px;
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.2);
-            backdrop-filter: blur(8px);
-            z-index: 50;
-            pointer-events: auto;
-        }
-        
-        .zoom-btn {
-            background: transparent; color: white; border: none;
-            width: 40px; height: 40px; border-radius: 50%; 
-            font-weight: bold; font-size: 13px; cursor: pointer; 
-            display: flex; justify-content: center; align-items: center;
-            transition: all 0.2s;
-        }
-        .zoom-btn.active { 
-            background: #F44336; 
-            box-shadow: 0 2px 8px rgba(244, 67, 54, 0.5);
-        }
-
         /* Panel Inferior */
         .bottom-bar { 
             position: absolute; z-index: 20; bottom: 0; left: 0; width: 100%; 
             padding: 15px; box-sizing: border-box; 
             background: linear-gradient(transparent, rgba(0,0,0,0.9)); 
             display: flex; flex-direction: row; justify-content: space-between; align-items: flex-end;
-            pointer-events: none; /* Permite toques al video */
+            pointer-events: none;
         }
         
         .panel-container { 
@@ -84,23 +58,44 @@
         .input-group select, .input-group input { font-size: 14px; padding: 6px; border: none; border-radius: 4px; background: rgba(255,255,255,0.9); font-family: 'Roboto Mono', monospace; }
         .input-group select { color: #d32f2f; font-weight: bold; }
         .input-group input[type="number"] { width: 50px; text-align: center; }
-        .input-group input[type="text"] { flex-grow: 1; min-width: 100px; }
-        
-        .project-input { width: 100%; box-sizing: border-box; background: rgba(20,20,20,0.75) !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; }
+        .input-group input[type="text"] { flex-grow: 1; min-width: 100px; pointer-events: auto; }
+        .project-input { width: 100%; box-sizing: border-box; background: rgba(20,20,20,0.75) !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; pointer-events: auto; }
         .project-input::placeholder { color: rgba(255,255,255,0.5); }
 
-        /* Contenedor de Captura y Zoom (Derecha) */
+        /* Contenedor Derecho (Botones Zoom + Captura) */
         .action-container {
             display: flex;
-            flex-direction: column;
             align-items: center;
             gap: 15px;
             pointer-events: auto;
         }
 
+        /* MÓDULO DE ZOOM HORIZONTAL */
+        .zoom-panel {
+            display: none; 
+            flex-direction: row;
+            gap: 5px;
+            background: rgba(10, 10, 12, 0.75);
+            padding: 5px;
+            border-radius: 25px;
+            border: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(8px);
+        }
+        .zoom-btn {
+            background: transparent; color: white; border: none;
+            width: 45px; height: 45px; border-radius: 50%; 
+            font-weight: bold; font-size: 14px; cursor: pointer; 
+            display: flex; justify-content: center; align-items: center;
+            transition: all 0.2s;
+        }
+        .zoom-btn.active { 
+            background: #F44336; 
+            box-shadow: 0 2px 8px rgba(244, 67, 54, 0.5);
+        }
+
         #capture-btn { 
             background: rgba(255,255,255,0.9); border: 4px solid #fff; outline: 3px solid rgba(255,255,255,0.3);
-            width: 75px; height: 75px; border-radius: 50%; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.6); transition: all 0.2s;
+            width: 70px; height: 70px; border-radius: 50%; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.6); transition: all 0.2s;
         }
         #capture-btn:active { background: #d32f2f; border-color: #d32f2f; transform: scale(0.9); }
 
@@ -108,7 +103,7 @@
         @media (max-width: 600px) {
             .bottom-bar { flex-direction: column; align-items: center; gap: 20px; padding-bottom: 30px; }
             .panel-container { width: 100%; justify-content: center; }
-            .action-container { flex-direction: row-reverse; width: 100%; justify-content: space-between; padding: 0 10px; }
+            .action-container { width: 100%; justify-content: space-around; }
         }
     </style>
 </head>
@@ -143,11 +138,12 @@
         </div>
         
         <div class="action-container">
-            <!-- Panel de Zoom -->
+            <!-- Botones de Zoom Integrados Horizontalmente -->
             <div id="zoom-panel" class="zoom-panel">
-                <button class="zoom-btn" data-zoom="0.5" id="btn-05x" style="display:none;">.5x</button>
-                <button class="zoom-btn active" data-zoom="1" id="btn-1x">1x</button>
-                <button class="zoom-btn" data-zoom="2" id="btn-2x">2x</button>
+                <button class="zoom-btn" data-zoom="0.5" id="btn-05x" style="display:none;">0.5x</button>
+                <button class="zoom-btn active" data-zoom="1">1x</button>
+                <button class="zoom-btn" data-zoom="1.5">1.5x</button>
+                <button class="zoom-btn" data-zoom="2">2x</button>
             </div>
             <button id="capture-btn"></button>
         </div>
@@ -235,14 +231,12 @@
                 const minZoom = capabilities.zoom.min || 1;
                 const maxZoom = capabilities.zoom.max || 10;
                 
-                // Mostrar 0.5x solo si la cámara nativa lo soporta
                 if (minZoom <= 0.5) {
                     btn05x.style.display = 'flex';
                 }
 
                 const applyZoom = (val) => {
                     let targetZoom = Math.max(minZoom, Math.min(val, maxZoom));
-                    
                     try {
                         videoTrack.applyConstraints({advanced: [{zoom: targetZoom}]});
                     } catch (e) { console.error("Error al aplicar zoom:", e); }
@@ -252,7 +246,6 @@
                     if(matchingBtn) matchingBtn.classList.add('active');
                 };
 
-                // Asignar eventos seguros a los botones
                 zoomBtns.forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -318,7 +311,6 @@
         const fontSize = Math.max(Math.floor(w * 0.016), 14); 
         const iconSize = fontSize * 1.1;
         
-        // 1. Dibujar Logo con Fondo Transparente Blanco (70%)
         const logo = document.getElementById('logo-preview');
         const logoSize = w * 0.12; 
         const logoH = logoSize * (logo.height/logo.width);
@@ -329,7 +321,6 @@
         drawRoundedRect(ctx, logoX - 10, logoY - 10, logoSize + 20, logoH + 20, 12);
         ctx.drawImage(logo, logoX, logoY, logoSize, logoH);
 
-        // 2. Panel Derecho (Datos)
         const now = new Date();
         const dateStr = now.toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute:'2-digit', second:'2-digit' });
@@ -377,7 +368,6 @@
             ctx.fillText(line.text, rectXRight + padX + iconSize + 10, yPos);
         });
 
-        // 3. Panel Izquierdo (Nomenclatura)
         const prefix = document.getElementById('prefix').value;
         const num = document.getElementById('num').value.padStart(3, '0');
         const desc = document.getElementById('desc').value.trim();
