@@ -17,16 +17,17 @@
             margin: 0; padding: 0; width: 100%; height: 100dvh; 
             background: #000; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             overflow: hidden; position: fixed; 
+            touch-action: none; /* Previene scroll accidental en toda la app */
         }
         #camera-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; align-items: center; }
         video { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { display: none; }
         
+        /* Controles Superiores (Rotar y Pantalla Completa) */
         .top-controls {
-            position: absolute; top: 20px; left: 20px; z-index: 10;
+            position: absolute; top: 20px; left: 20px; z-index: 50;
             display: flex; gap: 10px;
         }
-
         .top-btn {
             background: rgba(0,0,0,0.6); color: white; border: 1px solid rgba(255,255,255,0.3);
             border-radius: 8px; padding: 10px 15px; cursor: pointer; font-size: 20px;
@@ -35,49 +36,75 @@
         }
         .top-btn:active { background: rgba(255,255,255,0.3); }
 
-        #logo-preview { position: absolute; top: 20px; right: 20px; z-index: 10; width: clamp(60px, 15vw, 100px); opacity: 1; }
+        /* Logo Preview */
+        #logo-preview { 
+            position: absolute; top: 20px; right: 20px; z-index: 50; 
+            width: clamp(60px, 15vw, 100px); opacity: 1; 
+        }
 
-        /* Controles de Zoom */
+        /* ----- MÓDULO DE ZOOM CORREGIDO ----- */
         #zoom-container {
-            position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%);
-            z-index: 20; display: none; align-items: center; gap: 10px;
-            background: rgba(10, 10, 12, 0.75); padding: 8px 15px; border-radius: 25px;
-            border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(4px);
+            position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+            z-index: 9999; /* Z-index altísimo para que nada lo bloquee */
+            display: none; flex-direction: column; align-items: center; gap: 12px;
+            background: rgba(10, 10, 12, 0.85); padding: 15px 10px; border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(8px);
+            touch-action: none; /* Bloquea cualquier interacción nativa de la pantalla detrás */
         }
         .zoom-btn {
-            background: rgba(255,255,255,0.1); color: white; border: none;
-            padding: 5px 12px; border-radius: 15px; font-weight: bold; font-size: 14px; cursor: pointer;
+            background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3);
+            width: 45px; height: 45px; border-radius: 50%; font-weight: bold; font-size: 14px; 
+            cursor: pointer; display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
-        .zoom-btn:active { background: rgba(255,255,255,0.3); }
-        input[type=range] { width: 100px; accent-color: #F44336; }
+        .zoom-btn:active, .zoom-btn.active { background: #F44336; border-color: #F44336; }
+        
+        /* Contenedor del slider vertical */
+        .slider-wrapper { height: 150px; display: flex; align-items: center; justify-content: center; }
+        input[type=range] { 
+            -webkit-appearance: none; appearance: none;
+            width: 150px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px;
+            transform: rotate(-90deg); /* Slider Vertical */
+            accent-color: #F44336; cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 20px; height: 20px; background: white; border-radius: 50%;
+            border: 2px solid #F44336; cursor: pointer;
+        }
 
+        /* Panel Inferior de Datos */
         .bottom-bar { 
             position: absolute; z-index: 20; bottom: 0; left: 0; width: 100%; 
             padding: 15px; box-sizing: border-box; 
             background: linear-gradient(transparent, rgba(0,0,0,0.9)); 
             display: flex; flex-direction: row; justify-content: space-between; align-items: flex-end;
         }
-
+        
+        /* Adaptación móvil vertical (Portrait) */
         @media (max-width: 600px) {
             .bottom-bar { flex-direction: column; align-items: center; gap: 15px; padding-bottom: 30px; }
-            .naming-panel, .project-panel { width: 100%; justify-content: center; }
-            #zoom-container { bottom: 180px; }
+            .panel-container { width: 100%; justify-content: center; }
+            /* En vertical, movemos el zoom al centro superior para evitar conflictos con el texto de abajo */
+            #zoom-container {
+                top: 100px; right: 20px; transform: none;
+                flex-direction: column; height: auto;
+            }
         }
         
         .panel-container { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 300px; }
-        
         .input-group { display: flex; gap: 5px; flex-wrap: wrap; background: rgba(20,20,20,0.75); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(4px); }
         .input-group select, .input-group input { font-size: 14px; padding: 6px; border: none; border-radius: 4px; background: rgba(255,255,255,0.9); font-family: 'Roboto Mono', monospace; }
         .input-group select { color: #d32f2f; font-weight: bold; }
         .input-group input[type="number"] { width: 50px; text-align: center; }
-        .input-group input[type="text"] { flex-grow: 1; min-width: 100px; }
-        
-        .project-input { width: 100%; box-sizing: border-box; background: rgba(20,20,20,0.75) !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; }
+        .input-group input[type="text"] { flex-grow: 1; min-width: 100px; pointer-events: auto; } /* Reactiva el input en caso el touch-action lo bloquee */
+        .project-input { width: 100%; box-sizing: border-box; background: rgba(20,20,20,0.75) !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; pointer-events: auto; }
         .project-input::placeholder { color: rgba(255,255,255,0.5); }
 
         #capture-btn { 
             background: rgba(255,255,255,0.9); border: 4px solid #fff; outline: 3px solid rgba(255,255,255,0.3);
-            width: 65px; height: 65px; border-radius: 50%; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.6); transition: all 0.2s;
+            width: 75px; height: 75px; border-radius: 50%; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.6); transition: all 0.2s;
+            z-index: 50; pointer-events: auto;
         }
         #capture-btn:active { background: #d32f2f; border-color: #d32f2f; transform: scale(0.9); }
     </style>
@@ -92,12 +119,14 @@
         <button id="rotate-btn" class="top-btn" title="Forzar Rotación">🔄</button>
     </div>
 
-    <!-- Módulo de Zoom -->
+    <!-- Módulo de Zoom Corregido -->
     <div id="zoom-container">
-        <button class="zoom-btn" data-zoom="0.5">0.5x</button>
-        <button class="zoom-btn" data-zoom="1">1x</button>
         <button class="zoom-btn" data-zoom="2">2x</button>
-        <input type="range" id="zoom-slider" min="1" max="10" step="0.1" value="1">
+        <div class="slider-wrapper">
+            <input type="range" id="zoom-slider" min="1" max="10" step="0.1" value="1">
+        </div>
+        <button class="zoom-btn active" data-zoom="1" id="btn-1x">1x</button>
+        <button class="zoom-btn" data-zoom="0.5" id="btn-05x" style="display:none;">0.5x</button>
     </div>
 
     <img id="logo-preview" src="logo.png" alt="Logo" crossorigin="anonymous" onerror="this.src='https://via.placeholder.com/150?text=LOGO'">
@@ -125,7 +154,7 @@
 </div>
 
 <script>
-    // --- Lógica de Forzar Rotación ---
+    // --- Lógica de Forzar Rotación y Pantalla Completa ---
     const rotateBtn = document.getElementById('rotate-btn');
     rotateBtn.addEventListener('click', async () => {
         if (screen.orientation && screen.orientation.lock) {
@@ -137,12 +166,11 @@
                     await screen.orientation.lock('portrait');
                 }
             } catch (error) {
-                alert("Tu dispositivo requiere que pongas la app en Pantalla Completa (⛶) primero para forzar la rotación.");
+                alert("Pon la app en Pantalla Completa (⛶) primero para forzar la rotación.");
             }
         }
     });
 
-    // --- Lógica de Pantalla Completa ---
     const fsBtn = document.getElementById('fullscreen-btn');
     fsBtn.addEventListener('click', () => {
         if (!document.fullscreenElement) {
@@ -155,7 +183,6 @@
     // --- Lógica de Prefijos Personalizados ---
     const prefixSelect = document.getElementById('prefix');
     const savedPrefixes = JSON.parse(localStorage.getItem('customPrefixes')) || [];
-    
     savedPrefixes.forEach(pref => {
         const opt = document.createElement('option');
         opt.value = pref;
@@ -183,7 +210,7 @@
         }
     });
 
-    // --- Lógica de Cámara, Zoom y Topografía ---
+    // --- Lógica de Cámara, Zoom Corregido y Topografía ---
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -195,33 +222,71 @@
             video.srcObject = stream;
             videoTrack = stream.getVideoTracks()[0];
             
-            // Configurar Zoom si el hardware lo permite
+            // Configuración del Zoom Robusto
             const capabilities = videoTrack.getCapabilities();
             if (capabilities.zoom) {
                 const zoomContainer = document.getElementById('zoom-container');
                 const slider = document.getElementById('zoom-slider');
+                const btn05x = document.getElementById('btn-05x');
+                const zoomBtns = document.querySelectorAll('.zoom-btn');
                 
                 zoomContainer.style.display = 'flex';
-                slider.min = capabilities.zoom.min;
-                slider.max = Math.min(capabilities.zoom.max, 10);
-                slider.step = capabilities.zoom.step;
-                slider.value = videoTrack.getSettings().zoom;
+                
+                // Configurar límites del slider
+                const minZoom = capabilities.zoom.min || 1;
+                const maxZoom = Math.min(capabilities.zoom.max || 10, 10); // Máximo x10
+                
+                slider.min = minZoom;
+                slider.max = maxZoom;
+                slider.step = capabilities.zoom.step || 0.1;
+                
+                // Habilitar botón 0.5x si la cámara lo soporta
+                if (minZoom <= 0.5) {
+                    btn05x.style.display = 'flex';
+                }
 
+                // Función maestra para aplicar zoom
                 const applyZoom = (val) => {
                     let targetZoom = Math.max(slider.min, Math.min(val, slider.max));
                     slider.value = targetZoom;
-                    videoTrack.applyConstraints({advanced: [{zoom: targetZoom}]});
+                    
+                    try {
+                        videoTrack.applyConstraints({advanced: [{zoom: targetZoom}]});
+                    } catch (e) { console.error("Error al aplicar zoom:", e); }
+                    
+                    // Actualizar estilos de los botones
+                    zoomBtns.forEach(b => b.classList.remove('active'));
+                    const matchingBtn = document.querySelector(`.zoom-btn[data-zoom="${targetZoom}"]`);
+                    if(matchingBtn) matchingBtn.classList.add('active');
                 };
 
-                slider.addEventListener('input', (e) => applyZoom(parseFloat(e.target.value)));
-                
-                document.querySelectorAll('.zoom-btn').forEach(btn => {
-                    btn.addEventListener('click', () => applyZoom(parseFloat(btn.dataset.zoom)));
+                // Establecer zoom inicial en 1x
+                applyZoom(1);
+
+                // Event Listeners protegidos (Detienen la propagación al fondo)
+                slider.addEventListener('input', (e) => {
+                    e.stopPropagation();
+                    applyZoom(parseFloat(e.target.value));
                 });
+                slider.addEventListener('touchstart', (e) => e.stopPropagation());
+                slider.addEventListener('touchmove', (e) => e.stopPropagation());
+
+                zoomBtns.forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        applyZoom(parseFloat(btn.dataset.zoom));
+                    });
+                    btn.addEventListener('touchstart', (e) => e.stopPropagation());
+                });
+                
+                // Evitar que arrastrar en el contenedor mueva la pantalla
+                zoomContainer.addEventListener('touchmove', (e) => e.stopPropagation());
             }
         })
         .catch(err => alert("Error de cámara: " + err));
 
+    // Geolocalización
     if (navigator.geolocation) {
         navigator.geolocation.watchPosition(async position => {
             const lat = position.coords.latitude;
@@ -237,7 +302,7 @@
             const utm = proj4('EPSG:4326', `EPSG:UTM${utmZone}`, [lon, lat]);
             
             currentData.utmE = utm[0].toFixed(2);
-            // Adaptación para Google Earth (Suma 10,000,000 si está en hemisferio sur)
+            // Suma 10M para Google Earth si está en hemisferio sur
             currentData.utmN = utm[1] < 0 ? (utm[1] + 10000000).toFixed(2) : utm[1].toFixed(2);
 
             try {
@@ -264,6 +329,7 @@
         ctx.fill();
     }
 
+    // Acción de Captura
     document.getElementById('capture-btn').addEventListener('click', () => {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -274,14 +340,14 @@
         const fontSize = Math.max(Math.floor(w * 0.016), 14); 
         const iconSize = fontSize * 1.1;
         
-        // 1. Dibujar Logo con Fondo Transparente Blanco
+        // 1. Dibujar Logo con Fondo Transparente Blanco (70%)
         const logo = document.getElementById('logo-preview');
         const logoSize = w * 0.12; 
         const logoH = logoSize * (logo.height/logo.width);
         const logoX = w - logoSize - (w*0.02);
         const logoY = h*0.02;
 
-        ctx.fillStyle = "rgba(255, 255, 255, 0.7)"; // Fondo 70% opacidad blanco
+        ctx.fillStyle = "rgba(255, 255, 255, 0.7)"; 
         drawRoundedRect(ctx, logoX - 10, logoY - 10, logoSize + 20, logoH + 20, 12);
         ctx.drawImage(logo, logoX, logoY, logoSize, logoH);
 
