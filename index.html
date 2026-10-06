@@ -62,35 +62,12 @@
         .project-input { width: 100%; box-sizing: border-box; background: rgba(20,20,20,0.75) !important; color: white !important; border: 1px solid rgba(255,255,255,0.2) !important; pointer-events: auto; }
         .project-input::placeholder { color: rgba(255,255,255,0.5); }
 
-        /* Contenedor Derecho (Botones Zoom + Captura) */
+        /* Contenedor Derecho (Solo Captura) */
         .action-container {
             display: flex;
             align-items: center;
-            gap: 15px;
+            justify-content: center;
             pointer-events: auto;
-        }
-
-        /* MÓDULO DE ZOOM HORIZONTAL */
-        .zoom-panel {
-            display: none; 
-            flex-direction: row;
-            gap: 5px;
-            background: rgba(10, 10, 12, 0.75);
-            padding: 5px;
-            border-radius: 25px;
-            border: 1px solid rgba(255,255,255,0.2);
-            backdrop-filter: blur(8px);
-        }
-        .zoom-btn {
-            background: transparent; color: white; border: none;
-            width: 45px; height: 45px; border-radius: 50%; 
-            font-weight: bold; font-size: 14px; cursor: pointer; 
-            display: flex; justify-content: center; align-items: center;
-            transition: all 0.2s;
-        }
-        .zoom-btn.active { 
-            background: #F44336; 
-            box-shadow: 0 2px 8px rgba(244, 67, 54, 0.5);
         }
 
         #capture-btn { 
@@ -103,7 +80,7 @@
         @media (max-width: 600px) {
             .bottom-bar { flex-direction: column; align-items: center; gap: 20px; padding-bottom: 30px; }
             .panel-container { width: 100%; justify-content: center; }
-            .action-container { width: 100%; justify-content: space-around; }
+            .action-container { width: 100%; }
         }
     </style>
 </head>
@@ -138,13 +115,6 @@
         </div>
         
         <div class="action-container">
-            <!-- Botones de Zoom Integrados Horizontalmente -->
-            <div id="zoom-panel" class="zoom-panel">
-                <button class="zoom-btn" data-zoom="0.5" id="btn-05x" style="display:none;">0.5x</button>
-                <button class="zoom-btn active" data-zoom="1">1x</button>
-                <button class="zoom-btn" data-zoom="1.5">1.5x</button>
-                <button class="zoom-btn" data-zoom="2">2x</button>
-            </div>
             <button id="capture-btn"></button>
         </div>
     </div>
@@ -208,53 +178,15 @@
         }
     });
 
-    // --- Lógica de Cámara, Zoom y Topografía ---
+    // --- Lógica de Cámara y Topografía ---
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     let currentData = { lat: 0, lon: 0, alt: 0, acc: 0, utmE: 0, utmN: 0, zone: "", address: "Buscando satélites..." };
-    let videoTrack = null;
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } })
         .then(stream => {
             video.srcObject = stream;
-            videoTrack = stream.getVideoTracks()[0];
-            
-            const capabilities = videoTrack.getCapabilities();
-            if (capabilities.zoom) {
-                const zoomPanel = document.getElementById('zoom-panel');
-                const btn05x = document.getElementById('btn-05x');
-                const zoomBtns = document.querySelectorAll('.zoom-btn');
-                
-                zoomPanel.style.display = 'flex';
-                
-                const minZoom = capabilities.zoom.min || 1;
-                const maxZoom = capabilities.zoom.max || 10;
-                
-                if (minZoom <= 0.5) {
-                    btn05x.style.display = 'flex';
-                }
-
-                const applyZoom = (val) => {
-                    let targetZoom = Math.max(minZoom, Math.min(val, maxZoom));
-                    try {
-                        videoTrack.applyConstraints({advanced: [{zoom: targetZoom}]});
-                    } catch (e) { console.error("Error al aplicar zoom:", e); }
-                    
-                    zoomBtns.forEach(b => b.classList.remove('active'));
-                    const matchingBtn = document.querySelector(`.zoom-btn[data-zoom="${val}"]`);
-                    if(matchingBtn) matchingBtn.classList.add('active');
-                };
-
-                zoomBtns.forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        applyZoom(parseFloat(btn.dataset.zoom));
-                    });
-                    btn.addEventListener('touchstart', (e) => e.stopPropagation());
-                });
-            }
         })
         .catch(err => alert("Error de cámara: " + err));
 
@@ -311,6 +243,7 @@
         const fontSize = Math.max(Math.floor(w * 0.016), 14); 
         const iconSize = fontSize * 1.1;
         
+        // 1. Dibujar Logo con Fondo Transparente Blanco (70%)
         const logo = document.getElementById('logo-preview');
         const logoSize = w * 0.12; 
         const logoH = logoSize * (logo.height/logo.width);
@@ -321,6 +254,7 @@
         drawRoundedRect(ctx, logoX - 10, logoY - 10, logoSize + 20, logoH + 20, 12);
         ctx.drawImage(logo, logoX, logoY, logoSize, logoH);
 
+        // 2. Panel Derecho (Datos)
         const now = new Date();
         const dateStr = now.toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute:'2-digit', second:'2-digit' });
@@ -368,6 +302,7 @@
             ctx.fillText(line.text, rectXRight + padX + iconSize + 10, yPos);
         });
 
+        // 3. Panel Izquierdo (Nomenclatura)
         const prefix = document.getElementById('prefix').value;
         const num = document.getElementById('num').value.padStart(3, '0');
         const desc = document.getElementById('desc').value.trim();
